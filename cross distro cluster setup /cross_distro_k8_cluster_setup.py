@@ -7,15 +7,10 @@ import shutil
 import subprocess
 import psutil
 import ipaddress
-import json
 import re
 import socket
 import platform
-from pathlib import Path
-from datetime import datetime
-from subprocess import run, CalledProcessError
-from typing import Dict, List, Optional, Tuple, Union
-from concurrent.futures import ThreadPoolExecutor
+from typing import Dict
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,7 +44,7 @@ class SystemInfo:
                         key, value = line.rstrip().split("=", 1)
                         os_info[key] = value.strip('"')
             return os_info
-        except Exception as e:
+        except FileNotFoundError as e:
             raise K8sSetupError(f"Unable to detect Linux distribution: {e}")
 
     @staticmethod
@@ -59,7 +54,7 @@ class SystemInfo:
         try:
             s.connect(("8.8.8.8", 1))
             return s.getsockname()[0]
-        except Exception:
+        except socket.error:
             return "127.0.0.1"
         finally:
             s.close()
@@ -163,6 +158,20 @@ class ContainerRuntime:
             run_command(
                 f"{self.pkg_mgr.commands[self.pkg_mgr.distro_id]['install']} containerd.io"
             )
+        elif self.pkg_mgr.distro_id in ["fedora", "centos", "rhel"]:
+            run_command(
+                f"{self.pkg_mgr.commands[self.pkg_mgr.distro_id]['install']} containerd"
+            )
+        elif self.pkg_mgr.distro_id == "arch":
+            run_command(
+                f"{self.pkg_mgr.commands[self.pkg_mgr.distro_id]['install']} containerd"
+            )
+        elif self.pkg_mgr.distro_id == "suse":
+            run_command(
+                f"{self.pkg_mgr.commands[self.pkg_mgr.distro_id]['install']} containerd"
+            )
+        else:
+            raise K8sSetupError(f"Unsupported distribution: {self.pkg_mgr.distro_id}")
 
         # Configure containerd to use SystemdCgroup
         os.makedirs("/etc/containerd", exist_ok=True)
@@ -177,73 +186,81 @@ class ContainerRuntime:
             flags=re.DOTALL,
         )
 
-        with open("/etc/containerd/config.toml", "w") as f:
-            f.write(config)
-
-        run_command("systemctl restart containerd")
-        run_command("systemctl enable containerd")
-
 
 class K8sCluster:
     def __init__(self, config: Dict):
         self.config = config
         self.system_info = SystemInfo()
-        self.pkg_mgr = PackageManager(self.system_info.distro["ID"])
+        self.pkg_mgr = PackageManager(self.system_info.distro)
         self.container_runtime = ContainerRuntime(self.pkg_mgr)
 
     def check_prerequisites(self):
         """Check system prerequisites"""
+
         min_requirements = {
             "memory_gb": 2,
             "cpu_cores": 2,
             "ports": [6443, 2379, 2380, 10250, 10257, 10259],
         }
 
-        if self.system_info.memory_gb < min_requirements["memory_gb"]:
+        if (
+            self.system_info.memory_gb is None
+            or self.system_info.memory_gb < min_requirements["memory_gb"]
+        ):
             raise K8sSetupError(
-                f"Insufficient memory: {self.system_info.memory_gb:.1f}GB < {min_requirements['memory_gb']}GB"
+                f"Insufficient memory: {self.system_info.memory_gb if self.system_info.memory_gb is not None else 'Unknown'}GB < {min_requirements['memory_gb']}GB"
             )
 
-        if self.system_info.cpu_count < min_requirements["cpu_cores"]:
+        if (
+            self.system_info.cpu_count is None
+            or self.system_info.cpu_count < min_requirements["cpu_cores"]
+        ):
             raise K8sSetupError(
-                f"Insufficient CPU cores: {self.system_info.cpu_count} < {min_requirements['cpu_cores']}"
+                f"Insufficient CPU cores: {self.system_info.cpu_count if self.system_info.cpu_count is not None else 'Unknown'} < {min_requirements['cpu_cores']}"
             )
 
         # Check port availability
         for port in min_requirements["ports"]:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                if s.connect_ex(("127.0.0.1", port)) == 0:
-                    raise K8sSetupError(f"Port {port} is already in use")
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    if s.connect_ex(("127.0.0.1", port)) == 0:
+                        raise K8sSetupError(f"Port {port} is already in use")
+            except socket.error as e:
+                raise K8sSetupError(f"Error checking port {port}: {str(e)}")
 
     def configure_system(self):
         """Configure system settings"""
-        # Disable swap
-        run_command("swapoff -a")
-        run_command("sed -i '/ swap / s/^/#/' /etc/fstab")
+        try:
+            # Disable swap
+            run_command("swapoff -a")
+            run_command("sed -i '/ swap / s/^/#/' /etc/fstab")
 
-        # Load required modules
-        modules = ["overlay", "br_netfilter"]
-        module_config = "/etc/modules-load.d/k8s.conf"
-        with open(module_config, "w") as f:
-            f.write("\n".join(modules))
+            # Load required modules
+            modules = ["overlay", "br_netfilter"]
+            module_config = "/etc/modules-load.d/k8s.conf"
+            with open(module_config, "w") as f:
+                f.write("\n".join(modules))
 
-        for module in modules:
-            run_command(f"modprobe {module}")
+            for module in modules:
+                run_command(f"modprobe {module}")
 
-        # Configure sysctl parameters
-        sysctl_config = {
-            "net.bridge.bridge-nf-call-iptables": 1,
-            "net.bridge.bridge-nf-call-ip6tables": 1,
-            "net.ipv4.ip_forward": 1,
-            "net.ipv4.conf.all.forwarding": 1,
-            "net.ipv6.conf.all.forwarding": 1,
-        }
+            # Configure sysctl parameters
+            sysctl_config = {
+                "net.bridge.bridge-nf-call-iptables": 1,
+                "net.bridge.bridge-nf-call-ip6tables": 1,
+                "net.ipv4.ip_forward": 1,
+                "net.ipv4.conf.all.forwarding": 1,
+                "net.ipv6.conf.all.forwarding": 1,
+            }
 
-        with open("/etc/sysctl.d/k8s.conf", "w") as f:
-            for key, value in sysctl_config.items():
-                f.write(f"{key} = {value}\n")
+            with open("/etc/sysctl.d/k8s.conf", "w") as f:
+                for key, value in sysctl_config.items():
+                    f.write(f"{key} = {value}\n")
 
-        run_command("sysctl --system")
+            run_command("sysctl --system")
+        except K8sSetupError as e:
+            logging.error(f"Failed to configure system: {str(e)}")
+            raise
 
     def initialize_master(self) -> str:
         """Initialize Kubernetes control plane"""
@@ -295,29 +312,29 @@ class K8sCluster:
                 "url": "https://raw.githubusercontent.com/cilium/cilium/v1.14/install/kubernetes/quick-install.yaml",
                 "config": {},
             },
-            "flannel": {
-                "url": "https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml",
-                "config": {},
-            },
         }
 
-        plugin = self.config["network_plugin"].lower()
-        if plugin not in plugins:
-            raise K8sSetupError(f"Unsupported network plugin: {plugin}")
+        plugin = self.config.get("network_plugin", "").lower()
+        if not plugin or plugin not in plugins:
+            raise K8sSetupError(f"Unsupported or missing network plugin: {plugin}")
 
         # Download and apply network plugin manifest
-        manifest = run_command(f"curl -fsSL {plugins[plugin]['url']}")
+        try:
+            manifest = run_command(f"curl -fsSL {plugins[plugin]['url']}")
 
-        # Apply any plugin-specific configurations
-        if plugins[plugin]["config"]:
-            manifest_dict = yaml.safe_load(manifest)
-            # Apply configurations here
-            manifest = yaml.dump(manifest_dict)
+            # Apply any plugin-specific configurations
+            if plugins[plugin]["config"]:
+                manifest_dict = yaml.safe_load(manifest)
+                # Apply configurations here
+                manifest = yaml.dump(manifest_dict)
 
-        with open(f"{plugin}-manifest.yaml", "w") as f:
-            f.write(manifest)
+            with open(f"{plugin}-manifest.yaml", "w") as f:
+                f.write(manifest)
 
-        run_command(f"kubectl apply -f {plugin}-manifest.yaml")
+            run_command(f"kubectl apply -f {plugin}-manifest.yaml")
+        except K8sSetupError as e:
+            logging.error(f"Failed to deploy network plugin: {str(e)}")
+            raise
 
     def setup_monitoring(self):
         """Deploy monitoring stack (Prometheus + Grafana)"""
@@ -340,9 +357,21 @@ class K8sCluster:
             "--set replicas=1,resources.requests.cpu=100m,resources.requests.memory=512Mi"
         )
         # Deploy Fluent Bit
-        run_command("helm install fluent-bit fluent/fluent-bit " "--namespace logging")
+        run_command("helm install fluent-bit fluent/fluent-bit --namespace logging")
         # Deploy Kibana
-        run_command("helm install kibana elastic/kibana " "--namespace logging")
+        run_command(
+            "helm install kibana elastic/kibana "
+            "--namespace logging "
+            "--set replicas=1,resources.requests.cpu=100m,resources.requests.memory=512Mi"
+        )
+        # Deploy Fluent Bit
+        run_command("helm install fluent-bit fluent/fluent-bit --namespace logging")
+        # Deploy Kibana
+        run_command(
+            "helm install kibana elastic/kibana "
+            "--namespace logging "
+            "--set replicas=1,resources.requests.cpu=100m,resources.requests.memory=512Mi"
+        )
 
 
 def run_command(
@@ -372,10 +401,14 @@ def run_command(
             logging.error(f"Command timed out after {timeout} seconds")
             if attempt == retries - 1:
                 raise K8sSetupError("Command repeatedly timed out")
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Command failed: {e.stderr}")
+        except OSError as e:
+            logging.error(f"OS error: {str(e)}")
             if attempt == retries - 1:
-                raise K8sSetupError(f"Command failed after {retries} attempts")
+                raise K8sSetupError(f"OS error after {retries} attempts")
+        except Exception as e:
+            logging.error(f"Unexpected error: {str(e)}")
+            if attempt == retries - 1:
+                raise K8sSetupError(f"Unexpected error after {retries} attempts")
         except Exception as e:
             logging.error(f"Unexpected error: {str(e)}")
             if attempt == retries - 1:
@@ -393,7 +426,11 @@ def parse_args():
     parser.add_argument(
         "--config", default="config.yml", help="Path to configuration file"
     )
-    parser.add_argument("--join-command", help="Worker node join command")
+    parser.add_argument(
+        "--join-command",
+        required="--role" in sys.argv and "worker" in sys.argv,
+        help="Worker node join command",
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     return parser.parse_args()
 
@@ -404,32 +441,33 @@ def load_config(config_file: str = "config.yml") -> Dict:
     Raises ValueError if required fields are missing
     """
     try:
-        with open(config_file, "r") as file:
-            config = yaml.safe_load(file) or {}
-            required_fields = ["pod_network_cidr", "network_plugin"]
-            missing = [field for field in required_fields if field not in config]
-            if missing:
-                raise ValueError(
-                    f"Missing required config fields: {', '.join(missing)}"
-                )
-            return config
-    except FileNotFoundError:
-        logging.warning(f"Config file {config_file} not found. Using defaults.")
+        with open(config_file, "r") as f:
+            config = yaml.safe_load(f)
+        required_fields = ["pod_network_cidr", "network_plugin"]
+        missing = [field for field in required_fields if field not in config]
+        if missing:
+            raise ValueError(
+                f"Missing required configuration fields: {', '.join(missing)}"
+            )
+        return config
+    except FileNotFoundError as e:
+        logging.error(f"Configuration file not found: {str(e)}")
+        return {"pod_network_cidr": "192.168.0.0/16", "network_plugin": "calico"}
+    except ValueError as e:
+        logging.error(f"Configuration error: {str(e)}")
         return {"pod_network_cidr": "192.168.0.0/16", "network_plugin": "calico"}
 
 
 def main():
+    args = parse_args()
+    if os.geteuid() != 0:
+        raise K8sSetupError("Script must be run as root")
+
+    config = load_config(args.config)
+    package_manager = PackageManager(SystemInfo().distro.get("ID", ""))
+    cluster = K8sCluster(package_manager)
+
     try:
-        args = parse_args()
-        if args.verbose:
-            logging.getLogger().setLevel(logging.DEBUG)
-
-        if os.geteuid() != 0:
-            raise K8sSetupError("Script must be run as root")
-
-        config = load_config(args.config)
-        cluster = K8sCluster(config)
-
         logging.info("Checking system prerequisites...")
         cluster.check_prerequisites()
 
@@ -466,7 +504,7 @@ def main():
             if not args.join_command:
                 raise K8sSetupError("Worker role requires --join-command")
             logging.info("Joining worker node to cluster...")
-            run_command(args.join_command)
+            package_manager.run_command(args.join_command)
 
         logging.info("Setup completed successfully!")
 
