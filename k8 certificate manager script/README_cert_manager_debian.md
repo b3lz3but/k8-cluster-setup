@@ -3,6 +3,7 @@
 A comprehensive automation tool for managing Kubernetes cluster certificates with enterprise-grade features for certificate lifecycle management.
 
 ## Table of Contents
+- [Introduction](#introduction)
 - [Features](#features)
 - [Requirements](#requirements)
 - [Installation](#installation)
@@ -15,6 +16,10 @@ A comprehensive automation tool for managing Kubernetes cluster certificates wit
 - [Advanced Usage](#advanced-usage)
 - [Development](#development)
 - [Support](#support)
+
+## Introduction
+
+The Kubernetes Certificate Management Tool is designed to automate the lifecycle management of Kubernetes certificates. It provides features for generating, renewing, verifying, and backing up certificates, along with monitoring and alerting capabilities.
 
 ## Features
 

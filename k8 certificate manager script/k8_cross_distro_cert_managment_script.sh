@@ -229,11 +229,22 @@ detailed_cert_info() {
     log "Detailed certificate information displayed."
 }
 
+# Function to check if required commands are available
+check_dependencies() {
+    local dependencies=("kubectl" "kubeadm" "openssl" "rsync" "mail" "curl")
+    for cmd in "${dependencies[@]}"; do
+        if ! command -v $cmd &> /dev/null; then
+            log "ERROR: $cmd is not installed. Please install it and try again."
+            exit 1
+        fi
+    done
+}
+
 # Function to display an interactive menu
 interactive_menu() {
     while true; do
         # Display menu options to the user
-        echo "\nKubernetes Certificate Management Script"
+        echo -e "\nKubernetes Certificate Management Script"
         echo "--------------------------------------"
         echo "Current Kubernetes Context: $current_context"
         echo "--------------------------------------"
@@ -292,6 +303,9 @@ if [[ $EUID -ne 0 ]]; then
     log "This script must be run as root. Exiting..."
     exit 1
 fi
+
+# Check for required dependencies
+check_dependencies
 
 # Load configuration from file
 load_config
