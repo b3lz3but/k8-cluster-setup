@@ -464,8 +464,7 @@ def main():
         raise K8sSetupError("Script must be run as root")
 
     config = load_config(args.config)
-    package_manager = PackageManager(SystemInfo().distro.get("ID", ""))
-    cluster = K8sCluster(package_manager)
+    cluster = K8sCluster(config)
 
     try:
         logging.info("Checking system prerequisites...")
@@ -504,7 +503,7 @@ def main():
             if not args.join_command:
                 raise K8sSetupError("Worker role requires --join-command")
             logging.info("Joining worker node to cluster...")
-            package_manager.run_command(args.join_command)
+            run_command(args.join_command)
 
         logging.info("Setup completed successfully!")
 
