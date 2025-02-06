@@ -3,6 +3,7 @@
 A comprehensive automation tool for managing Kubernetes cluster certificates with enterprise-grade features for certificate lifecycle management.
 
 ## Table of Contents
+
 - [Introduction](#introduction)
 - [Features](#features)
 - [Requirements](#requirements)
@@ -17,6 +18,7 @@ A comprehensive automation tool for managing Kubernetes cluster certificates wit
 - [Development](#development)
 - [Support](#support)
 
+
 ## Introduction
 
 The Kubernetes Certificate Management Tool is designed to automate the lifecycle management of Kubernetes certificates. It provides features for generating, renewing, verifying, and backing up certificates, along with monitoring and alerting capabilities.
@@ -24,6 +26,7 @@ The Kubernetes Certificate Management Tool is designed to automate the lifecycle
 ## Features
 
 ### Core Features
+
 - Automated certificate lifecycle management
   - Generation of new certificates
   - Certificate renewal automation
@@ -39,6 +42,7 @@ The Kubernetes Certificate Management Tool is designed to automate the lifecycle
   - Detailed health checks
 
 ### Advanced Features
+
 - Custom certificate configurations
 - Integration with external PKI systems
 - Automatic recovery procedures
@@ -49,6 +53,7 @@ The Kubernetes Certificate Management Tool is designed to automate the lifecycle
 ## Requirements
 
 ### System Requirements
+
 - Operating System:
   - Ubuntu 20.04+ (recommended)
   - Debian 10+
@@ -58,6 +63,7 @@ The Kubernetes Certificate Management Tool is designed to automate the lifecycle
 - Network: Outbound access for notifications
 
 ### Software Dependencies
+
 ```bash
 # Core dependencies
 kubeadm
@@ -76,6 +82,7 @@ cfssl           # Additional certificate tools
 ```
 
 ### Kubernetes Requirements
+
 - Kubernetes 1.19+
 - Access to cluster PKI directory
 - kubeadm configuration access
@@ -84,6 +91,7 @@ cfssl           # Additional certificate tools
 ## Installation
 
 ### Quick Start
+
 ```bash
 # Clone repository
 git clone https://github.com/your-org/k8s-cert-management
@@ -102,6 +110,7 @@ chmod +x k8s_certificate_management.sh
 ```
 
 ### Advanced Installation
+
 ```bash
 # Create secure backup directory
 sudo mkdir -p /etc/kubernetes/pki/backup
@@ -123,6 +132,7 @@ sudo systemctl enable k8s-cert-management
 ## Configuration
 
 ### Basic Configuration
+
 ```bash
 # /etc/k8s_cert_script.conf
 expiration_warning_days=30
@@ -132,6 +142,7 @@ log_level="INFO"
 ```
 
 ### Advanced Configuration
+
 ```bash
 # /etc/k8s_cert_script.conf
 # Certificate settings
@@ -163,6 +174,7 @@ ha_nodes=["node1:6443", "node2:6443", "node3:6443"]
 ```
 
 ### Environment Variables
+
 ```bash
 # Notification settings
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/xxx"
@@ -180,11 +192,13 @@ export PKI_DIR="/etc/kubernetes/pki"
 ## Usage
 
 ### Interactive Mode
+
 ```bash
 sudo ./k8s_certificate_management.sh
 ```
 
 ### Command Line Operations
+
 ```bash
 # Basic operations
 sudo ./k8s_certificate_management.sh generate
@@ -199,6 +213,7 @@ sudo ./k8s_certificate_management.sh restore --backup-id 20240305-120000
 ```
 
 ### Automation Examples
+
 ```bash
 # Cron job for daily health check
 0 0 * * * /path/to/k8s_certificate_management.sh check-health >> /var/log/cert-health.log 2>&1
@@ -210,6 +225,7 @@ sudo ./k8s_certificate_management.sh restore --backup-id 20240305-120000
 ## Certificate Operations
 
 ### Generation
+
 ```bash
 # Generate all certificates
 sudo ./k8s_certificate_management.sh generate
@@ -219,6 +235,7 @@ sudo ./k8s_certificate_management.sh generate --component apiserver
 ```
 
 ### Renewal
+
 ```bash
 # Renew all certificates
 sudo ./k8s_certificate_management.sh renew
@@ -228,6 +245,7 @@ sudo ./k8s_certificate_management.sh renew --component etcd
 ```
 
 ### Verification
+
 ```bash
 # Check expiration
 sudo ./k8s_certificate_management.sh verify
@@ -237,6 +255,7 @@ sudo ./k8s_certificate_management.sh detailed-info
 ```
 
 ### Backup
+
 ```bash
 # Create backup
 sudo ./k8s_certificate_management.sh backup
@@ -248,6 +267,7 @@ sudo ./k8s_certificate_management.sh restore --backup-id 20240305-120000
 ## Monitoring & Alerts
 
 ### Health Checks
+
 ```bash
 # Basic health check
 sudo ./k8s_certificate_management.sh check-health
@@ -257,6 +277,7 @@ sudo ./k8s_certificate_management.sh check-health --detailed --output-format jso
 ```
 
 ### Notification Configuration
+
 ```yaml
 # notifications.yaml
 email:
@@ -286,7 +307,9 @@ teams:
 ## Security
 
 ### Best Practices
+
 1. File Permissions
+
 ```bash
 # Certificate files
 sudo chmod 600 /etc/kubernetes/pki/*.key
@@ -297,6 +320,7 @@ sudo chmod 700 /etc/kubernetes/pki/backup
 ```
 
 2. Encryption
+
 ```bash
 # Generate encryption key
 sudo openssl rand -base64 32 > /etc/kubernetes/pki/backup-encryption-key
@@ -307,6 +331,7 @@ echo "backup_encryption=true" >> /etc/k8s_cert_script.conf
 ```
 
 3. Access Control
+
 ```bash
 # Create dedicated service account
 sudo useradd -r -s /bin/false cert-manager
@@ -318,6 +343,7 @@ sudo chown -R cert-manager:cert-manager /etc/kubernetes/pki/backup
 ### Common Issues
 
 1. Certificate Generation Failures
+
 ```bash
 # Check PKI directory permissions
 ls -la /etc/kubernetes/pki/
@@ -330,8 +356,9 @@ openssl version
 kubeadm version
 ```
 
-2. Backup Failures
 ```bash
+2. Backup Failures
+
 # Check disk space
 df -h /etc/kubernetes/pki/backup
 
@@ -343,6 +370,7 @@ sudo rsync -av --delete /etc/kubernetes/pki/ /etc/kubernetes/pki/backup/test/
 ```
 
 3. Notification Issues
+
 ```bash
 # Test email
 echo "Test" | mail -s "Test Alert" admin@example.com
@@ -355,6 +383,7 @@ tail -f /var/log/k8s_cert_management.log
 ```
 
 ### Logging
+
 ```bash
 # Enable debug logging
 sed -i 's/log_level=.*/log_level=DEBUG/' /etc/k8s_cert_script.conf
@@ -369,6 +398,7 @@ logrotate /etc/logrotate.d/k8s-cert-management
 ## Advanced Usage
 
 ### Custom Certificate Configurations
+
 ```yaml
 # custom-cert-config.yaml
 apiVersion: kubeadm.k8s.io/v1beta3
@@ -382,6 +412,7 @@ etcd:
 ```
 
 ### High Availability Setup
+
 ```bash
 # Configure HA nodes
 sudo ./k8s_certificate_management.sh configure-ha --nodes "node1,node2,node3"
@@ -391,6 +422,7 @@ sudo ./k8s_certificate_management.sh sync-certificates --target node2
 ```
 
 ### Integration Examples
+
 ```bash
 # External PKI integration
 sudo ./k8s_certificate_management.sh integrate-pki \
@@ -406,6 +438,7 @@ sudo ./k8s_certificate_management.sh configure-monitoring \
 ## Development
 
 ### Building from Source
+
 ```bash
 # Clone repository
 git clone https://github.com/your-org/k8s-cert-management
@@ -419,11 +452,13 @@ make docs
 ```
 
 ### Contributing
+
 1. Fork repository
 2. Create feature branch
 3. Submit pull request
 
 ### Testing
+
 ```bash
 # Unit tests
 ./test/run-unit-tests.sh
